@@ -9,7 +9,9 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit && tsc -p widget/tsconfig.json --noEmit",
-    "test": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test \"lib/**/*.test.ts\""
+    "test": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test \"lib/**/*.test.ts\"",
+    "db:migrate": "bash scripts/migrate.sh",
+    "verify:live": "node --env-file=.env.local scripts/verify-live.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.5.2",
