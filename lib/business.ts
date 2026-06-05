@@ -8,6 +8,8 @@ export interface Business {
   notificationEmail: string | null;
   pricing: PricingConfig;
   allowedDomains: string[];
+  depositEnabled: boolean;
+  depositAmountCents: number;
 }
 
 function mapRow(row: any): Business {
@@ -17,6 +19,8 @@ function mapRow(row: any): Business {
     notificationEmail: row.notification_email ?? null,
     pricing: resolvePricing(row.pricing),
     allowedDomains: Array.isArray(row.allowed_domains) ? row.allowed_domains : [],
+    depositEnabled: Boolean(row.deposit_enabled),
+    depositAmountCents: Number(row.deposit_amount_cents) || 0,
   };
 }
 
@@ -57,6 +61,8 @@ export interface BusinessUpdate {
   notificationEmail: string | null;
   pricing: PricingConfig;
   allowedDomains: string[];
+  depositEnabled: boolean;
+  depositAmountCents: number;
 }
 
 /** Update the current contractor's business (RLS enforces ownership). */
@@ -75,6 +81,8 @@ export async function updateBusinessForCurrentUser(
       notification_email: update.notificationEmail,
       pricing: update.pricing,
       allowed_domains: update.allowedDomains,
+      deposit_enabled: update.depositEnabled,
+      deposit_amount_cents: update.depositAmountCents,
     })
     .eq("owner_id", user.id);
 
@@ -90,19 +98,24 @@ export interface PublicConfig {
   name: string;
   recurringDiscountPct: number;
   currency: "USD";
+  depositEnabled: boolean;
+  depositAmountCents: number;
 }
 
-export async function getPublicConfig(businessId: string): Promise<PublicConfig> {  const fallback: PublicConfig = {
+export async function getPublicConfig(businessId: string): Promise<PublicConfig> {
+  const fallback: PublicConfig = {
     name: "Lawn Care",
     recurringDiscountPct: DEFAULT_PRICING_CONFIG.recurringDiscountPct,
     currency: "USD",
+    depositEnabled: false,
+    depositAmountCents: 0,
   };
   const supabase = getServiceClient();
   if (!supabase) return fallback;
 
   const { data } = await supabase
     .from("businesses")
-    .select("name, pricing")
+    .select("name, pricing, deposit_enabled, deposit_amount_cents")
     .eq("id", businessId)
     .maybeSingle();
   if (!data) return fallback;
@@ -112,6 +125,8 @@ export async function getPublicConfig(businessId: string): Promise<PublicConfig>
     name: data.name ?? fallback.name,
     recurringDiscountPct: pricing.recurringDiscountPct,
     currency: "USD",
+    depositEnabled: Boolean(data.deposit_enabled),
+    depositAmountCents: Number(data.deposit_amount_cents) || 0,
   };
 }
 

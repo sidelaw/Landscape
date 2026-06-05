@@ -102,5 +102,47 @@ export const businessUpdateSchema = z.object({
   notificationEmail: z.string().email().max(254).nullable(),
   pricing: pricingConfigSchema,
   allowedDomains: z.array(z.string().trim().min(1).max(253)).max(50),
+  depositEnabled: z.boolean(),
+  depositAmountCents: z.number().int().min(0).max(1_000_000),
 });
 export type BusinessUpdateInput = z.infer<typeof businessUpdateSchema>;
+
+// ── Lead capture (SPEC §6) ────────────────────────────────────────────────────
+
+/** The quote result snapshot stored with a lead. */
+export const quoteSnapshotSchema = z.object({
+  kind: z.enum(["range", "custom_quote"]),
+  low: z.number().optional(),
+  high: z.number().optional(),
+  display: z.string().optional(),
+  needsManualReview: z.boolean().optional(),
+});
+
+export const leadInputSchema = z
+  .object({
+    businessId: z.string().min(1),
+    name: z.string().trim().max(120).optional(),
+    email: z.string().trim().email().max(254).optional().or(z.literal("")),
+    phone: z.string().trim().max(40).optional().or(z.literal("")),
+    smsConsent: z.boolean().default(false),
+    quote: quoteSnapshotSchema,
+    inputs: z.record(z.unknown()).default({}),
+    lotSource: z.string().max(20).optional(),
+  })
+  .refine((d) => Boolean((d.email && d.email !== "") || (d.phone && d.phone !== "")), {
+    message: "Provide at least an email or a phone number.",
+    path: ["email"],
+  })
+  // TCPA: a phone number requires explicit SMS consent.
+  .refine((d) => !(d.phone && d.phone !== "") || d.smsConsent, {
+    message: "SMS consent is required when a phone number is provided.",
+    path: ["smsConsent"],
+  });
+export type LeadInput = z.infer<typeof leadInputSchema>;
+
+/** Widget-fired funnel event. */
+export const eventSchema = z.object({
+  businessId: z.string().min(1),
+  event: z.enum(["address_entered", "property_confirmed"]),
+});
+export type EventInput = z.infer<typeof eventSchema>;

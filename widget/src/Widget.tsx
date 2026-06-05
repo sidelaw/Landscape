@@ -7,6 +7,7 @@ import {
   LAST_CUT_OPTIONS,
   type LastCutOption,
   type Parcel,
+  type PublicConfig,
   type QuoteResult,
   type Suggestion,
 } from "./api";
@@ -26,6 +27,19 @@ function bucket(v: number, labels: string[]): string {
 
 export function Widget({ businessId, apiBase = "" }: WidgetProps) {
   const api = useRef(new Api(apiBase, businessId)).current;
+
+  // Public, display-safe contractor config (recurring discount label, deposit).
+  const [config, setConfig] = useState<PublicConfig | null>(null);
+  const firedAddress = useRef(false);
+  const firedConfirm = useRef(false);
+
+  useEffect(() => {
+    let alive = true;
+    api.getConfig().then((c) => alive && c && setConfig(c));
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   // Address / property
   const [query, setQuery] = useState("");
@@ -71,12 +85,24 @@ export function Widget({ businessId, apiBase = "" }: WidgetProps) {
   }, [query, selected]);
 
   async function pick(s: Suggestion) {
+    if (!firedAddress.current) {
+      firedAddress.current = true;
+      api.event("address_entered");
+    }
     setSelected(s);
     setQuery(s.label);
     setSuggestions([]);
     setConfirmed(null);
     setParcel(await api.parcel(s));
     setQuote(null);
+  }
+
+  function confirmYes() {
+    setConfirmed(true);
+    if (!firedConfirm.current) {
+      firedConfirm.current = true;
+      api.event("property_confirmed");
+    }
   }
 
   function resetAddress() {
@@ -192,7 +218,7 @@ export function Widget({ businessId, apiBase = "" }: WidgetProps) {
               <button
                 class="lc-btn"
                 aria-pressed={confirmed === true}
-                onClick={() => setConfirmed(true)}
+                onClick={confirmYes}
               >
                 Yes
               </button>
@@ -267,7 +293,8 @@ export function Widget({ businessId, apiBase = "" }: WidgetProps) {
           onChange={(e) => setRecurring((e.target as HTMLInputElement).checked)}
         />
         <span>
-          Add recurring lawn care <span class="lc-off">(15% off)</span>
+          Add recurring lawn care{" "}
+          <span class="lc-off">({config?.recurringDiscountPct ?? 15}% off)</span>
         </span>
       </label>
 
@@ -283,7 +310,24 @@ export function Widget({ businessId, apiBase = "" }: WidgetProps) {
         </p>
       )}
 
-      {quote && <Estimate quote={quote} businessId={businessId} />}
+      {quote && parcel && (
+        <Estimate
+          quote={quote}
+          api={api}
+          config={config}
+          leadInputs={{
+            lotSqft: effectiveSqft,
+            hasStructure: parcel.hasStructure,
+            lastCut: LAST_CUT_OPTIONS[lastCutIdx].value,
+            obstructions,
+            terrain,
+            recurring,
+            address: parcel.address,
+            parcelId: parcel.parcelId,
+          }}
+          lotSource={parcel.lotSource}
+        />
+      )}
     </div>
   );
 }
@@ -327,22 +371,57 @@ function Slider({
 
 function Estimate({
   quote,
-  businessId,
+  api,
+  config,
+  leadInputs,
+  lotSource,
 }: {
   quote: QuoteResult;
-  businessId?: string;
+  api: Api;
+  config: PublicConfig | null;
+  leadInputs: Record<string, unknown>;
+  lotSource?: string;
 }) {
   const [contact, setContact] = useState("");
   const [name, setName] = useState("");
   const [smsConsent, setSmsConsent] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [touched, setTouched] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [depositBusy, setDepositBusy] = useState(false);
 
   const phone = looksLikePhone(contact);
   const contactValid = phone ? isValidUsPhone(contact) : isValidEmail(contact);
   // TCPA: if a phone is given, SMS consent is required before submit.
   const consentOk = !phone || smsConsent;
-  const canSubmit = contactValid && consentOk;
+  const canSubmit = contactValid && consentOk && !submitting;
+  const depositDollars = config ? (config.depositAmountCents / 100).toFixed(0) : "0";
+
+  async function submit() {
+    if (!canSubmit) return;
+    setSubmitting(true);
+    setError(null);
+    const res = await api.lead({
+      name: name || undefined,
+      email: phone ? undefined : contact.trim(),
+      phone: phone ? contact.trim() : undefined,
+      smsConsent,
+      quote,
+      inputs: leadInputs,
+      lotSource,
+    });
+    setSubmitting(false);
+    if (res.ok) setSubmitted(true);
+    else setError("Something went wrong. Please try again.");
+  }
+
+  async function payDeposit() {
+    setDepositBusy(true);
+    const res = await api.depositCheckout(phone ? undefined : contact.trim());
+    setDepositBusy(false);
+    if (res.url) window.location.href = res.url;
+  }
 
   return (
     <div class="lc-estimate">
@@ -361,11 +440,23 @@ function Estimate({
       )}
 
       {submitted ? (
-        <p class="lc-note" role="status">
-          ✅ Thanks{name ? `, ${name.split(" ")[0]}` : ""}! Your{" "}
-          {quote.kind === "range" ? "price is reserved" : "request is in"} — the
-          contractor will reach out shortly.
-        </p>
+        <div role="status">
+          <p class="lc-note">
+            ✅ Thanks{name ? `, ${name.split(" ")[0]}` : ""}! Your{" "}
+            {quote.kind === "range" ? "price is reserved" : "request is in"} — the
+            contractor will reach out shortly.
+          </p>
+          {config?.depositEnabled && config.depositAmountCents > 0 && (
+            <>
+              <button class="lc-cta" disabled={depositBusy} onClick={payDeposit}>
+                <LockIcon /> Pay ${depositDollars} deposit to book
+              </button>
+              <div class="lc-shield">
+                <ShieldIcon /> Optional — secures your spot.
+              </div>
+            </>
+          )}
+        </div>
       ) : (
         <div class="lc-contact">
           <label class="lc-label" for="lc-contact">
@@ -407,19 +498,18 @@ function Estimate({
             </label>
           )}
 
-          <button
-            class="lc-cta"
-            disabled={!canSubmit}
-            onClick={() => setSubmitted(true)}
-          >
-            <LockIcon /> {quote.kind === "range" ? "Lock in this price" : "Request a quote"}
+          <button class="lc-cta" disabled={!canSubmit} onClick={submit}>
+            <LockIcon />{" "}
+            {submitting
+              ? "Submitting…"
+              : quote.kind === "range"
+                ? "Lock in this price"
+                : "Request a quote"}
           </button>
+          {error && <p class="lc-note lc-warn">{error}</p>}
           <div class="lc-shield">
             <ShieldIcon /> No payment now. No obligation.
           </div>
-          <p class="lc-note">
-            Lead delivery (storage + contractor email) is wired in Milestone 6.
-          </p>
         </div>
       )}
     </div>

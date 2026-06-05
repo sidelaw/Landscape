@@ -97,6 +97,63 @@ export class Api {
     if (!res.ok) return { error: "quote_failed" };
     return res.json();
   }
+
+  async getConfig(): Promise<PublicConfig | null> {
+    if (!this.businessId) return null;
+    const res = await fetch(this.url("/api/config"));
+    if (!res.ok) return null;
+    const data = await res.json().catch(() => null);
+    return data?.config ?? null;
+  }
+
+  /** Fire a funnel event (best-effort, fire-and-forget). */
+  event(event: "address_entered" | "property_confirmed"): void {
+    if (!this.businessId) return;
+    void fetch(this.url("/api/event"), {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ businessId: this.businessId, event }),
+      keepalive: true,
+    }).catch(() => {});
+  }
+
+  async lead(payload: LeadPayload): Promise<{ ok: boolean; error?: string }> {
+    const res = await fetch(this.url("/api/lead"), {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ ...payload, businessId: this.businessId }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) return { ok: false, error: data?.error ?? "lead_failed" };
+    return { ok: true };
+  }
+
+  async depositCheckout(email?: string): Promise<{ url?: string; error?: string }> {
+    const res = await fetch(this.url("/api/deposit/checkout"), {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ businessId: this.businessId, email }),
+    });
+    return res.json().catch(() => ({ error: "deposit_failed" }));
+  }
+}
+
+export interface PublicConfig {
+  name: string;
+  recurringDiscountPct: number;
+  currency: string;
+  depositEnabled: boolean;
+  depositAmountCents: number;
+}
+
+export interface LeadPayload {
+  name?: string;
+  email?: string;
+  phone?: string;
+  smsConsent: boolean;
+  quote: QuoteResult;
+  inputs: Record<string, unknown>;
+  lotSource?: string;
 }
 
 // ── Lightweight US contact validation (TCPA gating happens in the UI) ─────────

@@ -4,6 +4,7 @@ import { loadPricingConfig } from "@/lib/config";
 import { estimate } from "@/lib/estimate";
 import { guard } from "@/lib/access";
 import { getAllowedDomains } from "@/lib/business";
+import { recordEvent } from "@/lib/analytics";
 
 export const runtime = "nodejs";
 
@@ -38,6 +39,7 @@ export async function POST(req: Request) {
   const result = estimate(input, config);
 
   if (result.kind === "custom_quote") {
+    await recordEvent(businessId, "custom_quote_routed");
     // Don't reveal a figure; the widget captures contact for human follow-up.
     return NextResponse.json({
       kind: "custom_quote",
@@ -45,6 +47,8 @@ export async function POST(req: Request) {
       needsManualReview: result.needsManualReview,
     });
   }
+
+  await recordEvent(businessId, "quote_shown", { low: result.low, high: result.high });
 
   return NextResponse.json({
     kind: "range",

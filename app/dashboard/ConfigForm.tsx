@@ -10,6 +10,10 @@ export function ConfigForm({ business, origin }: { business: Business; origin: s
   const [email, setEmail] = useState(business.notificationEmail ?? "");
   const [domains, setDomains] = useState(business.allowedDomains.join("\n"));
   const [p, setP] = useState<PricingConfig>(business.pricing);
+  const [depositEnabled, setDepositEnabled] = useState(business.depositEnabled);
+  const [depositDollars, setDepositDollars] = useState(
+    String((business.depositAmountCents || 0) / 100),
+  );
   const [status, setStatus] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -34,6 +38,8 @@ export function ConfigForm({ business, origin }: { business: Business; origin: s
         .split(/[\n,]/)
         .map((d) => d.trim())
         .filter(Boolean),
+      depositEnabled,
+      depositAmountCents: Math.max(0, Math.round(Number(depositDollars) * 100)) || 0,
     });
     setBusy(false);
     setStatus(res.ok ? "Saved ✓" : `Error: ${res.error ?? "unknown"}`);
@@ -128,6 +134,34 @@ export function ConfigForm({ business, origin }: { business: Business; origin: s
             </Field>
           ))}
         </div>
+      </section>
+
+      <section className="dash-card">
+        <h2>Deposit (optional)</h2>
+        <p className="muted">
+          Off by default. When enabled, homeowners can pay a deposit via Stripe after
+          requesting their quote. Requires <code>STRIPE_SECRET_KEY</code>.
+        </p>
+        <label className="lc-check" style={{ display: "flex", gap: 10, alignItems: "center", margin: "10px 0" }}>
+          <input
+            type="checkbox"
+            checked={depositEnabled}
+            onChange={(e) => setDepositEnabled(e.currentTarget.checked)}
+          />
+          <span>Enable deposit</span>
+        </label>
+        {depositEnabled && (
+          <Field label="Deposit amount ($)">
+            <input
+              className="inp"
+              type="number"
+              step="1"
+              min="0"
+              value={depositDollars}
+              onChange={(e) => setDepositDollars(e.currentTarget.value)}
+            />
+          </Field>
+        )}
       </section>
 
       <div className="dash-actions">

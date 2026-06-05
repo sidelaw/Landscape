@@ -1,8 +1,10 @@
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { isSupabaseConfigured } from "@/lib/env";
-import { getCurrentUser } from "@/lib/supabase/server";
+import { createServerSupabase, getCurrentUser } from "@/lib/supabase/server";
 import { getOrCreateBusinessForCurrentUser } from "@/lib/business";
+import { listLeadsForCurrentUser, type StoredLead } from "@/lib/leads";
+import { getFunnel } from "@/lib/analytics";
 import { ConfigForm } from "./ConfigForm";
 
 export const dynamic = "force-dynamic";
@@ -44,6 +46,10 @@ export default async function DashboardPage() {
   const proto = host.startsWith("localhost") ? "http" : "https";
   const origin = `${proto}://${host}`;
 
+  const leads = await listLeadsForCurrentUser(business.id);
+  const supabase = createServerSupabase();
+  const funnel = supabase ? await getFunnel(supabase, business.id) : null;
+
   return (
     <main className="dash-wrap">
       <div className="dash-head">
@@ -58,7 +64,72 @@ export default async function DashboardPage() {
         </form>
       </div>
 
+      {funnel && (
+        <section className="dash-card">
+          <h2>Conversion</h2>
+          <div className="grid2">
+            <Stat label="Addresses entered" value={funnel.address_entered} />
+            <Stat label="Properties confirmed" value={funnel.property_confirmed} />
+            <Stat label="Quotes shown" value={funnel.quote_shown} />
+            <Stat label="Leads captured" value={funnel.lead_captured} />
+          </div>
+        </section>
+      )}
+
+      <LeadsInbox leads={leads} />
+
       <ConfigForm business={business} origin={origin} />
     </main>
+  );
+}
+
+function Stat({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="field">
+      <span className="field-label">{label}</span>
+      <span style={{ fontSize: 22, fontWeight: 800 }}>{value}</span>
+    </div>
+  );
+}
+
+function LeadsInbox({ leads }: { leads: StoredLead[] }) {
+  return (
+    <section className="dash-card">
+      <h2>Leads ({leads.length})</h2>
+      {leads.length === 0 ? (
+        <p className="muted">No leads yet. They&apos;ll appear here as homeowners submit quotes.</p>
+      ) : (
+        <div style={{ overflowX: "auto" }}>
+          <table className="leads">
+            <thead>
+              <tr>
+                <th>When</th>
+                <th>Contact</th>
+                <th>Quote</th>
+                <th>Lot</th>
+                <th>SMS</th>
+              </tr>
+            </thead>
+            <tbody>
+              {leads.map((l) => (
+                <tr key={l.id}>
+                  <td>{new Date(l.createdAt).toLocaleDateString()}</td>
+                  <td>
+                    {l.name && <div>{l.name}</div>}
+                    <div className="muted">{l.email || l.phone || "—"}</div>
+                  </td>
+                  <td>{l.quote?.display ?? (l.quote?.kind === "custom_quote" ? "Custom" : "—")}</td>
+                  <td className="muted">
+                    {l.inputs?.lotSqft ? `${Number(l.inputs.lotSqft).toLocaleString()} sqft` : "—"}
+                    {l.lotSource ? ` (${l.lotSource})` : ""}
+                  </td>
+                  <td>{l.phone ? (l.smsConsent ? "✓" : "✗") : "—"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
   );
 }

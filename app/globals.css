@@ -256,3 +256,8 @@ textarea.inp { resize: vertical; }
 .nav { position: fixed; top: 14px; right: 16px; display: flex; gap: 14px; z-index: 10; }
 .nav a { color: var(--muted); font-size: 13px; text-decoration: none; }
 .nav a:hover { color: var(--green-bright); }
+
+/* leads table */
+.leads { width: 100%; border-collapse: collapse; font-size: 13px; }
+.leads th, .leads td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+.leads th { color: var(--muted); font-weight: 600; font-size: 12px; }
