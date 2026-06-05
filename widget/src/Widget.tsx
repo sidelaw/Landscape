@@ -25,7 +25,7 @@ function bucket(v: number, labels: string[]): string {
 }
 
 export function Widget({ businessId, apiBase = "" }: WidgetProps) {
-  const api = useRef(new Api(apiBase)).current;
+  const api = useRef(new Api(apiBase, businessId)).current;
 
   // Address / property
   const [query, setQuery] = useState("");

@@ -98,8 +98,7 @@ export interface PublicConfig {
   currency: "USD";
 }
 
-export async function getPublicConfig(businessId: string): Promise<PublicConfig> {
-  const fallback: PublicConfig = {
+export async function getPublicConfig(businessId: string): Promise<PublicConfig> {  const fallback: PublicConfig = {
     name: "Lawn Care",
     recurringDiscountPct: DEFAULT_PRICING_CONFIG.recurringDiscountPct,
     currency: "USD",
@@ -120,4 +119,20 @@ export async function getPublicConfig(businessId: string): Promise<PublicConfig>
     recurringDiscountPct: pricing.recurringDiscountPct,
     currency: "USD",
   };
+}
+
+/**
+ * Allowed embed domains for a business (service-role read), used by the access
+ * guard on metered endpoints. Returns null when unavailable/not found.
+ */
+export async function getAllowedDomains(businessId: string): Promise<string[] | null> {
+  const supabase = getServiceClient();
+  if (!supabase) return null;
+  const { data } = await supabase
+    .from("businesses")
+    .select("allowed_domains")
+    .eq("id", businessId)
+    .maybeSingle();
+  if (!data) return null;
+  return Array.isArray(data.allowed_domains) ? data.allowed_domains : [];
 }

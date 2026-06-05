@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { parcelByPoint, RegridError } from "@/lib/regrid";
 import { parcelQuerySchema } from "@/lib/schemas";
+import { guard } from "@/lib/access";
+import { getAllowedDomains } from "@/lib/business";
 
 export const runtime = "nodejs";
 
@@ -12,7 +14,14 @@ export const runtime = "nodejs";
  * manual lot-size entry rather than blocking the quote.
  */
 export async function GET(req: Request) {
-  const params = Object.fromEntries(new URL(req.url).searchParams);
+  const sp = new URL(req.url).searchParams;
+  const blocked = await guard(req, {
+    businessId: sp.get("businessId"),
+    getAllowedDomains,
+  });
+  if (blocked) return blocked;
+
+  const params = Object.fromEntries(sp);
   const parsed = parcelQuerySchema.safeParse(params);
   if (!parsed.success) {
     return NextResponse.json(

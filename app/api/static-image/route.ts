@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { googleStaticUrl, placeholderSvg } from "@/lib/maps";
+import { guard } from "@/lib/access";
+import { getAllowedDomains } from "@/lib/business";
 
 export const runtime = "nodejs";
 
@@ -11,6 +13,13 @@ export const runtime = "nodejs";
  */
 export async function GET(req: Request) {
   const sp = new URL(req.url).searchParams;
+
+  const blocked = await guard(req, {
+    businessId: sp.get("businessId"),
+    getAllowedDomains,
+  });
+  if (blocked) return blocked;
+
   const lat = Number(sp.get("lat"));
   const lon = Number(sp.get("lon"));
   const zoom = sp.get("zoom") ? Number(sp.get("zoom")) : undefined;

@@ -54,10 +54,17 @@ export interface QuoteInput {
 }
 
 export class Api {
-  constructor(private base: string) {}
+  constructor(
+    private base: string,
+    private businessId?: string,
+  ) {}
 
   private url(path: string): string {
-    return `${this.base}${path}`;
+    const sep = path.includes("?") ? "&" : "?";
+    const biz = this.businessId
+      ? `${sep}businessId=${encodeURIComponent(this.businessId)}`
+      : "";
+    return `${this.base}${path}${biz}`;
   }
 
   async typeahead(q: string): Promise<{ suggestions: Suggestion[]; mock?: boolean }> {

@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { quoteInputSchema } from "@/lib/schemas";
 import { loadPricingConfig } from "@/lib/config";
 import { estimate } from "@/lib/estimate";
+import { guard } from "@/lib/access";
+import { getAllowedDomains } from "@/lib/business";
 
 export const runtime = "nodejs";
 
@@ -29,6 +31,9 @@ export async function POST(req: Request) {
   }
 
   const { businessId, ...input } = parsed.data;
+
+  const blocked = await guard(req, { businessId, getAllowedDomains });
+  if (blocked) return blocked;
   const config = await loadPricingConfig(businessId);
   const result = estimate(input, config);
 
