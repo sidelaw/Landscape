@@ -20,8 +20,8 @@ import type { Parcel, TypeaheadSuggestion } from "./schemas";
  * "manual entry" rather than throwing.
  */
 
-const TYPEAHEAD_URL = "https://app.regrid.com/api/v1/typeahead.json";
-const PARCEL_POINT_URL = "https://app.regrid.com/api/v1/parcels/point.json";
+const TYPEAHEAD_URL = "https://app.regrid.com/api/v2/parcels/typeahead";
+const PARCEL_POINT_URL = "https://app.regrid.com/api/v2/parcels/point";
 const TIMEOUT_MS = 6000;
 
 async function fetchJson(url: string): Promise<unknown> {
@@ -77,7 +77,12 @@ export async function typeahead(query: string): Promise<TypeaheadSuggestion[]> {
 
   const url = `${TYPEAHEAD_URL}?query=${encodeURIComponent(trimmed)}&token=${env.regridToken}`;
   const json = (await fetchJson(url)) as any;
-  const rows: any[] = Array.isArray(json) ? json : (json?.results ?? json?.suggestions ?? []);
+  // Regrid v2 typeahead → { parcel_centroids: GeoJSON FeatureCollection }.
+  // Stay defensive about the wrapper key + accept a bare array/FeatureCollection.
+  const fc = json?.parcel_centroids ?? json?.parcels ?? json;
+  const rows: any[] = Array.isArray(fc)
+    ? fc
+    : (fc?.features ?? json?.results ?? json?.suggestions ?? []);
 
   const suggestions: TypeaheadSuggestion[] = rows
     .map((r) => parseSuggestion(r))
@@ -88,10 +93,16 @@ export async function typeahead(query: string): Promise<TypeaheadSuggestion[]> {
 }
 
 function parseSuggestion(r: any): TypeaheadSuggestion | null {
-  const lat = num(r?.lat ?? r?.latitude ?? r?.centroid?.lat ?? r?.context?.lat);
-  const lon = num(r?.lon ?? r?.lng ?? r?.longitude ?? r?.centroid?.lon ?? r?.context?.lon);
-  const label = str(r?.headline ?? r?.address ?? r?.label ?? r?.name ?? r?.text);
-  const parcelId = str(r?.ll_uuid ?? r?.parcel_id ?? r?.id ?? r?.path);
+  // v2 returns GeoJSON Features: coords in geometry.coordinates ([lon, lat]),
+  // address + ll_uuid under properties. Fall back to flat fields for safety.
+  const props = r?.properties ?? r;
+  const coords = r?.geometry?.coordinates;
+  const lon = num(coords?.[0] ?? props?.lon ?? props?.lng ?? props?.longitude);
+  const lat = num(coords?.[1] ?? props?.lat ?? props?.latitude);
+  const address = str(props?.address ?? props?.headline ?? props?.label ?? props?.name);
+  const context = str(props?.context);
+  const label = address ? (context ? `${address}, ${context}` : address) : context;
+  const parcelId = str(props?.ll_uuid ?? props?.parcel_id ?? props?.id ?? props?.path);
   if (lat === null || lon === null || !label) return null;
   return { parcelId: parcelId ?? "", label, lat, lon };
 }
