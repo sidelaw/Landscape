@@ -199,3 +199,60 @@ button:focus-visible {
   background: rgba(230, 180, 60, 0.15);
   color: #e6b43c;
 }
+
+/* ── Auth + Dashboard ─────────────────────────────────────────────────────── */
+.auth-wrap, .dash-wrap {
+  min-height: 100vh; padding: 40px 16px; display: flex; flex-direction: column;
+  align-items: center; gap: 16px;
+}
+.dash-wrap { max-width: 760px; margin: 0 auto; align-items: stretch; }
+.auth-card, .dash-card {
+  width: 100%; max-width: 420px; background: var(--panel); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 24px;
+}
+.dash-card { max-width: 760px; margin-bottom: 4px; }
+.dash-head {
+  width: 100%; display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; padding: 4px 2px;
+}
+.dash-head h1 { margin: 0; font-size: 22px; }
+.auth-card h1 { margin: 0 0 16px; font-size: 22px; }
+.dash-card h2 { margin: 0 0 12px; font-size: 17px; }
+.muted { color: var(--muted); font-size: 14px; line-height: 1.5; }
+code { background: var(--panel-2); padding: 1px 5px; border-radius: 5px; font-size: 12px; }
+
+.lbl, .field-label { display: block; font-weight: 600; font-size: 13px; margin: 12px 0 6px; }
+.inp {
+  width: 100%; background: var(--panel-2); border: 1px solid var(--border); border-radius: 9px;
+  color: var(--text); padding: 10px 12px; font-size: 14px; outline: none; font-family: inherit;
+}
+.inp:focus { border-color: var(--green); }
+textarea.inp { resize: vertical; }
+
+.field { display: block; margin-bottom: 8px; }
+.field-hint { display: block; color: var(--muted); font-size: 12px; margin-top: 4px; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 16px; }
+@media (max-width: 560px) { .grid2 { grid-template-columns: 1fr; } }
+
+.snippet {
+  background: #0c0f0c; border: 1px solid var(--border); border-radius: 9px; padding: 12px;
+  font-size: 12px; overflow-x: auto; white-space: pre-wrap; word-break: break-all; color: var(--green-bright);
+}
+.btn-primary {
+  margin-top: 16px; padding: 11px 18px; border: none; border-radius: 9px; background: var(--green);
+  color: #08210a; font-weight: 700; font-size: 14px; cursor: pointer;
+}
+.btn-primary:disabled { opacity: .5; cursor: not-allowed; }
+.btn-ghost {
+  margin-top: 10px; padding: 8px 14px; border: 1px solid var(--border); border-radius: 9px;
+  background: var(--panel-2); color: var(--text); font-size: 13px; font-weight: 600; cursor: pointer;
+}
+.link {
+  display: block; margin-top: 12px; background: none; border: none; color: var(--green-bright);
+  font-size: 13px; cursor: pointer; padding: 0;
+}
+.dash-actions { display: flex; align-items: center; gap: 12px; padding: 8px 2px 32px; }
+
+.nav { position: fixed; top: 14px; right: 16px; display: flex; gap: 14px; z-index: 10; }
+.nav a { color: var(--muted); font-size: 13px; text-decoration: none; }
+.nav a:hover { color: var(--green-bright); }

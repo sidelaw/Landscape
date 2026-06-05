@@ -42,6 +42,9 @@ export default function Page() {
         background: "#0a0c0a",
       }}
     >
+      <nav className="nav">
+        <a href="/dashboard">Contractor dashboard →</a>
+      </nav>
       <div ref={ref} />
     </main>
   );

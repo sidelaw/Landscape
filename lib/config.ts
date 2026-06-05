@@ -76,10 +76,27 @@ export const DEFAULT_PRICING_CONFIG: PricingConfig = {
 };
 
 /**
- * Load a contractor's pricing config by business id.
- * Milestone 4 replaces this with a Supabase lookup (seeded with the defaults).
- * For now every business resolves to the SPEC defaults.
+ * Load a contractor's pricing config by business id from Postgres (service
+ * role, server-side). Any stored fields override the SPEC defaults; missing
+ * fields fall back to them. Resolves to the defaults when no business id is
+ * given, the row isn't found, or Supabase isn't configured.
+ *
+ * Imported lazily to keep this module free of server-only deps for callers
+ * that just need the defaults/types.
  */
-export async function loadPricingConfig(_businessId?: string): Promise<PricingConfig> {
-  return DEFAULT_PRICING_CONFIG;
+export async function loadPricingConfig(businessId?: string): Promise<PricingConfig> {
+  if (!businessId) return DEFAULT_PRICING_CONFIG;
+
+  const { getServiceClient } = await import("./supabase");
+  const supabase = getServiceClient();
+  if (!supabase) return DEFAULT_PRICING_CONFIG;
+
+  const { data } = await supabase
+    .from("businesses")
+    .select("pricing")
+    .eq("id", businessId)
+    .maybeSingle();
+  if (!data?.pricing || typeof data.pricing !== "object") return DEFAULT_PRICING_CONFIG;
+
+  return { ...DEFAULT_PRICING_CONFIG, ...(data.pricing as Partial<PricingConfig>) };
 }
