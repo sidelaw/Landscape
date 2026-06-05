@@ -12,7 +12,7 @@ export const runtime = "nodejs";
  * Body: { lotSqft, hasStructure, lastCut, obstructions, terrain, recurring, businessId? }
  * Computes the estimate server-side (price math is never trusted to the client)
  * and returns either a price range or a custom-quote signal.
- * Note (Milestone 5): add Origin allowlist + rate limiting per business-id.
+ * Protected by per-IP rate limiting + the per-business Origin allowlist.
  */
 export async function POST(req: Request) {
   let body: unknown;

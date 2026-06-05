@@ -8,6 +8,8 @@
  * `loadPricingConfig` returns the defaults.
  */
 
+import { pricingConfigSchema } from "./schemas.ts";
+
 export type LastCutOption =
   | "within_week"
   | "2_3_weeks"
@@ -47,13 +49,20 @@ export interface PricingConfig {
 }
 
 /** System coverage bands — SPEC §2. Starting assumptions; calibrate post-launch. */
+// The top band is "unbounded"; we use a large finite sentinel rather than
+// Infinity so the value survives JSONB round-trips (JSON has no Infinity).
+export const UNBOUNDED_SQFT = 1_000_000_000;
+
 export const DEFAULT_COVERAGE_BANDS: CoverageBand[] = [
   { maxSqft: 2999, ratio: 0.5 },
   { maxSqft: 7499, ratio: 0.6 },
   { maxSqft: 14999, ratio: 0.65 },
   { maxSqft: 43560, ratio: 0.7 }, // ≤ 1 acre
-  { maxSqft: Infinity, ratio: 0.55, manualReview: true }, // > 1 acre
+  { maxSqft: UNBOUNDED_SQFT, ratio: 0.55, manualReview: true }, // > 1 acre
 ];
+
+/** Lot size above which a job is flagged for manual review (1 acre). */
+export const MANUAL_REVIEW_SQFT = 43560;
 
 export const DEFAULT_PRICING_CONFIG: PricingConfig = {
   baseRatePer1000Sqft: 7.0,
@@ -76,13 +85,39 @@ export const DEFAULT_PRICING_CONFIG: PricingConfig = {
 };
 
 /**
+ * Resolve a stored (possibly partial/malformed) pricing JSON into a valid
+ * PricingConfig: deep-merge over the SPEC defaults, then validate. On any
+ * validation failure (e.g. a non-numeric rate from a corrupted row) fall back
+ * to the defaults rather than risk a NaN/throwing estimate.
+ */
+export function resolvePricing(stored: unknown): PricingConfig {
+  if (!stored || typeof stored !== "object") return DEFAULT_PRICING_CONFIG;
+  const s = stored as Record<string, unknown>;
+
+  const merged: PricingConfig = {
+    ...DEFAULT_PRICING_CONFIG,
+    ...(s as Partial<PricingConfig>),
+    lastCutMultipliers: {
+      ...DEFAULT_PRICING_CONFIG.lastCutMultipliers,
+      ...(s.lastCutMultipliers && typeof s.lastCutMultipliers === "object"
+        ? (s.lastCutMultipliers as Record<string, number>)
+        : {}),
+    },
+    coverageBands:
+      Array.isArray(s.coverageBands) && s.coverageBands.length > 0
+        ? (s.coverageBands as CoverageBand[])
+        : DEFAULT_PRICING_CONFIG.coverageBands,
+  };
+
+  const parsed = pricingConfigSchema.safeParse(merged);
+  return parsed.success ? (parsed.data as PricingConfig) : DEFAULT_PRICING_CONFIG;
+}
+
+/**
  * Load a contractor's pricing config by business id from Postgres (service
- * role, server-side). Any stored fields override the SPEC defaults; missing
- * fields fall back to them. Resolves to the defaults when no business id is
- * given, the row isn't found, or Supabase isn't configured.
- *
- * Imported lazily to keep this module free of server-only deps for callers
- * that just need the defaults/types.
+ * role, server-side). Resolves to the defaults when no business id is given,
+ * the row isn't found, Supabase isn't configured, or the stored config fails
+ * validation.
  */
 export async function loadPricingConfig(businessId?: string): Promise<PricingConfig> {
   if (!businessId) return DEFAULT_PRICING_CONFIG;
@@ -96,7 +131,5 @@ export async function loadPricingConfig(businessId?: string): Promise<PricingCon
     .select("pricing")
     .eq("id", businessId)
     .maybeSingle();
-  if (!data?.pricing || typeof data.pricing !== "object") return DEFAULT_PRICING_CONFIG;
-
-  return { ...DEFAULT_PRICING_CONFIG, ...(data.pricing as Partial<PricingConfig>) };
+  return resolvePricing(data?.pricing);
 }

@@ -1,6 +1,6 @@
 import { createServerSupabase, getCurrentUser } from "./supabase/server";
 import { getServiceClient } from "./supabase";
-import { DEFAULT_PRICING_CONFIG, type PricingConfig } from "./config";
+import { DEFAULT_PRICING_CONFIG, resolvePricing, type PricingConfig } from "./config";
 
 export interface Business {
   id: string;
@@ -10,18 +10,12 @@ export interface Business {
   allowedDomains: string[];
 }
 
-/** Merge a stored (possibly partial) pricing JSON over the SPEC defaults. */
-export function mergePricing(stored: unknown): PricingConfig {
-  if (!stored || typeof stored !== "object") return DEFAULT_PRICING_CONFIG;
-  return { ...DEFAULT_PRICING_CONFIG, ...(stored as Partial<PricingConfig>) };
-}
-
 function mapRow(row: any): Business {
   return {
     id: row.id,
     name: row.name,
     notificationEmail: row.notification_email ?? null,
-    pricing: mergePricing(row.pricing),
+    pricing: resolvePricing(row.pricing),
     allowedDomains: Array.isArray(row.allowed_domains) ? row.allowed_domains : [],
   };
 }
@@ -113,7 +107,7 @@ export async function getPublicConfig(businessId: string): Promise<PublicConfig>
     .maybeSingle();
   if (!data) return fallback;
 
-  const pricing = mergePricing(data.pricing);
+  const pricing = resolvePricing(data.pricing);
   return {
     name: data.name ?? fallback.name,
     recurringDiscountPct: pricing.recurringDiscountPct,

@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { estimate, coverageRatio, type EstimateInput } from "./estimate.ts";
-import { DEFAULT_PRICING_CONFIG as cfg } from "./config.ts";
+import { DEFAULT_PRICING_CONFIG as cfg, resolvePricing } from "./config.ts";
 
 const base: EstimateInput = {
   lotSqft: 10890,
@@ -105,6 +105,40 @@ test("price above auto_quote_cap routes to custom quote (no figure)", () => {
   assert.equal(r.reason, "above_cap");
   assert.equal(r.needsManualReview, true); // > 1 acre band
   assert.ok(r.price > cfg.autoQuoteCap);
+});
+
+test("open lot over 1 acre still flags manual review", () => {
+  const r = estimate(
+    {
+      lotSqft: 44000, // > 43,560 (1 acre), open lot
+      hasStructure: false,
+      lastCut: "within_week",
+      obstructions: 0,
+      terrain: 0,
+      recurring: false,
+    },
+    cfg,
+  );
+  assert.equal(r.coverageRatio, cfg.openLotCoverage); // 0.80 open-lot bump
+  assert.equal(r.needsManualReview, true);
+});
+
+test("resolvePricing falls back to defaults on malformed config", () => {
+  assert.equal(resolvePricing(null), cfg); // not an object → default reference
+  assert.equal(resolvePricing({ baseRatePer1000Sqft: "abc" }), cfg); // non-numeric → fallback
+  // A non-object nested field is sanitized back to the defaults (value-equal).
+  assert.deepEqual(resolvePricing({ lastCutMultipliers: "nope" }), cfg);
+});
+
+test("resolvePricing deep-merges a valid partial over defaults", () => {
+  const r = resolvePricing({
+    baseRatePer1000Sqft: 9,
+    lastCutMultipliers: { within_week: 2 },
+  });
+  assert.equal(r.baseRatePer1000Sqft, 9);
+  assert.equal(r.lastCutMultipliers.within_week, 2); // overridden
+  assert.equal(r.lastCutMultipliers.about_month, cfg.lastCutMultipliers.about_month); // kept
+  assert.equal(r.minimumCharge, cfg.minimumCharge); // kept
 });
 
 test("recurring discount applies the configured percentage", () => {

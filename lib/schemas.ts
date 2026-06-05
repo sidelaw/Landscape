@@ -67,3 +67,40 @@ export const quoteInputSchema = z.object({
   recurring: z.boolean().default(false),
 });
 export type QuoteInput = z.infer<typeof quoteInputSchema>;
+
+// ── Pricing config validation (used when reading stored config + on save) ─────
+
+export const coverageBandSchema = z.object({
+  maxSqft: z.number().nonnegative(),
+  ratio: z.number().min(0).max(1),
+  manualReview: z.boolean().optional(),
+});
+
+export const pricingConfigSchema = z.object({
+  baseRatePer1000Sqft: z.number().positive(),
+  minimumCharge: z.number().nonnegative(),
+  lastCutMultipliers: z.object({
+    within_week: z.number().positive(),
+    "2_3_weeks": z.number().positive(),
+    about_month: z.number().positive(),
+    "2_3_months": z.number().positive(),
+    "6_plus_months": z.number().positive(),
+  }),
+  obstructionMultiplierMax: z.number().min(1),
+  terrainMultiplierMax: z.number().min(1),
+  recurringDiscountPct: z.number().min(0).max(100),
+  rangeLowPct: z.number().min(0).max(100),
+  rangeHighPct: z.number().min(0).max(100),
+  autoQuoteCap: z.number().positive(),
+  coverageBands: z.array(coverageBandSchema).min(1),
+  openLotCoverage: z.number().min(0).max(1),
+});
+
+/** Body for the dashboard "save business" server action. */
+export const businessUpdateSchema = z.object({
+  name: z.string().trim().min(1).max(120),
+  notificationEmail: z.string().email().max(254).nullable(),
+  pricing: pricingConfigSchema,
+  allowedDomains: z.array(z.string().trim().min(1).max(253)).max(50),
+});
+export type BusinessUpdateInput = z.infer<typeof businessUpdateSchema>;

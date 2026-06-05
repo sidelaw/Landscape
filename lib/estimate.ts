@@ -1,4 +1,4 @@
-import type { LastCutOption, PricingConfig } from "./config";
+import { MANUAL_REVIEW_SQFT, type LastCutOption, type PricingConfig } from "./config.ts";
 
 /**
  * The estimate engine — SPEC §2–§4.
@@ -58,9 +58,10 @@ export function coverageRatio(
   hasStructure: boolean | null,
   config: PricingConfig,
 ): { ratio: number; manualReview: boolean } {
-  // No building on the parcel → likely an open lot; bump coverage.
+  // No building on the parcel → likely an open lot; bump coverage. Still flag
+  // lots over 1 acre for manual review (SPEC §2).
   if (hasStructure === false) {
-    return { ratio: config.openLotCoverage, manualReview: false };
+    return { ratio: config.openLotCoverage, manualReview: lotSqft > MANUAL_REVIEW_SQFT };
   }
   for (const band of config.coverageBands) {
     if (lotSqft <= band.maxSqft) {

@@ -7,8 +7,14 @@ import { STYLES } from "./styles";
  * widget is fully isolated from the host page's CSS (and vice-versa), injects
  * the scoped styles, and renders the Preact app.
  */
+const mountedRoots = new WeakMap<ShadowRoot, HTMLElement>();
+
 export function mount(target: Element, opts: WidgetProps = {}): void {
   const host = target.shadowRoot ?? target.attachShadow({ mode: "open" });
+
+  // Tear down a previous mount (effects/timers) before re-rendering.
+  const prev = mountedRoots.get(host);
+  if (prev) render(null, prev);
   host.innerHTML = "";
 
   const style = document.createElement("style");
@@ -17,6 +23,7 @@ export function mount(target: Element, opts: WidgetProps = {}): void {
 
   const root = document.createElement("div");
   host.appendChild(root);
+  mountedRoots.set(host, root);
 
   render(<Widget {...opts} />, root);
 }

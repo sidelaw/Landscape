@@ -48,7 +48,8 @@ export function Widget({ businessId, apiBase = "" }: WidgetProps) {
   const [quoting, setQuoting] = useState(false);
   const [quoteError, setQuoteError] = useState(false);
 
-  // Debounced typeahead
+  // Debounced typeahead. `stale` guards against the timer firing after unmount
+  // and against an earlier request resolving after a newer one.
   useEffect(() => {
     if (selected) return;
     if (debounce.current) clearTimeout(debounce.current);
@@ -56,11 +57,17 @@ export function Widget({ businessId, apiBase = "" }: WidgetProps) {
       setSuggestions([]);
       return;
     }
+    let stale = false;
     debounce.current = setTimeout(async () => {
       const data = await api.typeahead(query);
+      if (stale) return;
       setSuggestions(data.suggestions);
       setMock(Boolean(data.mock));
     }, 250);
+    return () => {
+      stale = true;
+      if (debounce.current) clearTimeout(debounce.current);
+    };
   }, [query, selected]);
 
   async function pick(s: Suggestion) {
@@ -118,6 +125,10 @@ export function Widget({ businessId, apiBase = "" }: WidgetProps) {
           class="lc-input"
           type="text"
           autoComplete="off"
+          role="combobox"
+          aria-expanded={suggestions.length > 0}
+          aria-controls="lc-suggestions"
+          aria-autocomplete="list"
           placeholder="Enter your US address"
           value={query}
           onInput={(e) => {
@@ -133,7 +144,12 @@ export function Widget({ businessId, apiBase = "" }: WidgetProps) {
       </div>
 
       {suggestions.length > 0 && (
-        <ul class="lc-suggestions" role="listbox" aria-label="Address suggestions">
+        <ul
+          id="lc-suggestions"
+          class="lc-suggestions"
+          role="listbox"
+          aria-label="Address suggestions"
+        >
           {suggestions.map((s) => (
             <li
               key={s.parcelId || s.label}
@@ -141,7 +157,16 @@ export function Widget({ businessId, apiBase = "" }: WidgetProps) {
               aria-selected={false}
               tabIndex={0}
               onClick={() => pick(s)}
-              onKeyDown={(e) => e.key === "Enter" && pick(s)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") pick(s);
+                else if (e.key === "ArrowDown") {
+                  e.preventDefault();
+                  (e.currentTarget.nextElementSibling as HTMLElement | null)?.focus();
+                } else if (e.key === "ArrowUp") {
+                  e.preventDefault();
+                  (e.currentTarget.previousElementSibling as HTMLElement | null)?.focus();
+                }
+              }}
             >
               {s.label}
             </li>

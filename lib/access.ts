@@ -24,9 +24,15 @@ const MAX_PER_WINDOW = 60;
 const buckets = new Map<string, { count: number; resetAt: number }>();
 
 export function clientIp(req: Request): string {
+  // Prefer the platform-set x-real-ip (Vercel/Cloudflare populate this with the
+  // true edge client IP) over the leftmost x-forwarded-for entry, which a
+  // client can spoof by prepending its own value. For hard guarantees, back the
+  // limiter with Redis keyed on a trusted IP.
+  const realIp = req.headers.get("x-real-ip");
+  if (realIp) return realIp.trim();
   const xff = req.headers.get("x-forwarded-for");
   if (xff) return xff.split(",")[0].trim();
-  return req.headers.get("x-real-ip") ?? "unknown";
+  return "unknown";
 }
 
 export function rateLimit(key: string): boolean {

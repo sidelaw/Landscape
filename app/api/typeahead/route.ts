@@ -13,7 +13,7 @@ export const runtime = "nodejs";
  */
 export async function GET(req: Request) {
   const params = new URL(req.url).searchParams;
-  const q = params.get("q") ?? "";
+  const q = (params.get("q") ?? "").slice(0, 120); // bound length before Regrid/cache
   const businessId = params.get("businessId");
 
   const blocked = await guard(req, { businessId, getAllowedDomains });
