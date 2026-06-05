@@ -30,3 +30,6 @@ next-env.d.ts
 
 # vercel
 .vercel
+
+# generated widget bundle (built by widget/build.mjs)
+/public/embed
