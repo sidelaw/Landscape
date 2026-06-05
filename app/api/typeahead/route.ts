@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { typeahead, RegridError } from "@/lib/regrid";
+import { typeahead, typeaheadDebug, RegridError } from "@/lib/regrid";
 import { isRegridConfigured } from "@/lib/env";
 import { guard } from "@/lib/access";
 import { getAllowedDomains } from "@/lib/business";
@@ -18,6 +18,11 @@ export async function GET(req: Request) {
 
   const blocked = await guard(req, { businessId, getAllowedDomains });
   if (blocked) return blocked;
+
+  // TEMP diagnostic — remove once typeahead is confirmed live.
+  if (params.get("debug") === "1") {
+    return NextResponse.json(await typeaheadDebug(q));
+  }
 
   if (q.trim().length < 3) {
     return NextResponse.json({ suggestions: [] });

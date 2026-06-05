@@ -92,6 +92,50 @@ export async function typeahead(query: string): Promise<TypeaheadSuggestion[]> {
   return suggestions;
 }
 
+/**
+ * TEMP diagnostic — surfaces what Regrid actually returns for a query without
+ * leaking the token or full address data. Remove once typeahead is confirmed.
+ */
+export async function typeaheadDebug(query: string): Promise<unknown> {
+  const trimmed = query.trim();
+  if (!isRegridConfigured()) return { configured: false };
+  const url = `${TYPEAHEAD_URL}?query=${encodeURIComponent(trimmed)}&token=${env.regridToken}`;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  try {
+    const res = await fetch(url, { signal: controller.signal });
+    clearTimeout(timer);
+    const text = await res.text();
+    let json: any = null;
+    try {
+      json = JSON.parse(text);
+    } catch {
+      /* non-JSON body */
+    }
+    const fc = json?.parcel_centroids ?? json?.parcels ?? json;
+    const features = Array.isArray(fc) ? fc : fc?.features;
+    return {
+      configured: true,
+      endpoint: TYPEAHEAD_URL,
+      upstreamStatus: res.status,
+      topLevelKeys: json && typeof json === "object" ? Object.keys(json) : null,
+      isJson: json !== null,
+      bodySnippet: json ? undefined : text.slice(0, 200),
+      featureCount: Array.isArray(features) ? features.length : null,
+      firstFeatureKeys: features?.[0] ? Object.keys(features[0]) : null,
+      firstFeaturePropKeys: features?.[0]?.properties
+        ? Object.keys(features[0].properties)
+        : null,
+      parsedCount: (Array.isArray(features) ? features : [])
+        .map((r: any) => parseSuggestion(r))
+        .filter(Boolean).length,
+    };
+  } catch (err) {
+    clearTimeout(timer);
+    return { configured: true, endpoint: TYPEAHEAD_URL, error: String(err) };
+  }
+}
+
 function parseSuggestion(r: any): TypeaheadSuggestion | null {
   // v2 returns GeoJSON Features: coords in geometry.coordinates ([lon, lat]),
   // address + ll_uuid under properties. Fall back to flat fields for safety.
