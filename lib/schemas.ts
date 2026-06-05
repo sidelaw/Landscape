@@ -49,3 +49,21 @@ export const parcelQuerySchema = z.object({
   address: z.string().optional(),
 });
 export type ParcelQuery = z.infer<typeof parcelQuerySchema>;
+
+/** Inputs for a quote request (the 3 condition inputs + lot facts). */
+export const quoteInputSchema = z.object({
+  businessId: z.string().optional(),
+  lotSqft: z.number().positive(),
+  hasStructure: z.boolean().nullable().default(null),
+  lastCut: z.enum([
+    "within_week",
+    "2_3_weeks",
+    "about_month",
+    "2_3_months",
+    "6_plus_months",
+  ]),
+  obstructions: z.number().min(0).max(1),
+  terrain: z.number().min(0).max(1),
+  recurring: z.boolean().default(false),
+});
+export type QuoteInput = z.infer<typeof quoteInputSchema>;
