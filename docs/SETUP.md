@@ -65,6 +65,28 @@ It creates two throwaway users + a business, then checks (and cleans up):
 
 Exit code is non-zero if anything fails, with a per-check PASS/FAIL/SKIP report.
 
+## 5. Deploy to Vercel
+
+The repo ships a `vercel.json` that sets the **Build Command** to `npm run build`.
+This is required: Vercel's default Next.js build (`next build`) does **not** run
+`widget/build.mjs`, and `/public/embed` is gitignored — so without this override
+the embeddable `/embed/widget.js` bundle is never generated and the widget fails
+to load on the demo page, the hosted `/q` page, and every contractor embed.
+
+Set the same environment variables from §1 in **Vercel → Project → Settings →
+Environment Variables** (Production + Preview). Restarting the Claude Code
+session only loads keys into the sandbox — it does **not** configure Vercel.
+Minimum for a working frontend:
+
+- `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`
+- `REGRID_API_TOKEN`, `GOOGLE_MAPS_API_KEY` (live address + satellite paths)
+- optional: `STRIPE_SECRET_KEY`, `RESEND_API_KEY`, `LEAD_FROM_EMAIL`
+
+Then deploy (CLI: `vercel --prod`, or connect the repo in the Vercel dashboard).
+Point `verify:live` at the deployment with `APP_URL=https://<your-app> npm run
+verify:live` to confirm the live endpoints end-to-end.
+
 ## Notes
 - Supabase **Auth → Email**: for the dashboard sign-up flow, either disable
   "Confirm email" for testing, or confirm via the emailed link. The automated
